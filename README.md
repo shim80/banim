@@ -15,25 +15,32 @@ The project includes:
 
 ---
 
-## Demo videos
+## Demo boot animations : 
 
 The example animations are available in `animation_examples/`.
 
 ### GBA
 
-[Watch MP4 preview](animation_examples/previews/gba0001-0260.mp4)
+
+
+https://github.com/user-attachments/assets/74fb67aa-87ab-4f93-8e47-9f6cdbc2c393
+
+
 
 ### Knulli
 
-[Watch MP4 preview](animation_examples/previews/knulli_0001-0260.mp4)
+
+
+https://github.com/user-attachments/assets/aa9148bc-3580-42fd-903e-711908804ccf
+
+
 
 ### muOS
 
-[Watch MP4 preview](animation_examples/previews/muos_0001-0260.mp4)
 
-Note: GitHub usually opens MP4 files with its web video player when clicked.
 
-For inline embedded players directly inside the README, upload the videos through GitHub's Markdown editor or an issue/comment, then paste the generated `https://github.com/user-attachments/assets/...` URLs on their own lines.
+https://github.com/user-attachments/assets/39e1d9e1-264f-4ddb-be71-7a34014b097a
+
 
 ---
 
@@ -332,7 +339,7 @@ The reliable muOS version uses three app entries:
     BootAnim Uninstall
     BootAnim Preview
 
-This version is intentionally kept simple and reliable.
+This version is intentionally kept simple and reliable (mostly because I don't know how  to code SDL app...)
 
 The muOS package is in:
 
@@ -396,6 +403,7 @@ Disable the boot animation:
     rm -rf /opt/bootanim
     sync
     reboot
+    or use uninstall app
 
 ---
 
@@ -416,8 +424,3 @@ Experimental / not included as reliable:
 - SDL2 muOS manager
 - DRM/KMS renderer
 
----
-
-## License
-
-Add your preferred license here.
