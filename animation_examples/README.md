@@ -1,47 +1,33 @@
 # Animation examples
 
-This folder contains example boot animations in `.banim` format.
+This folder contains ready-to-use `.banim` boot animations.
 
-To use an example on a handheld, copy or rename it to:
+To use an example, copy or rename it to:
 
-```text
-bootanim.banim
-```
+    bootanim.banim
 
-For Knulli, place it at:
+## GBA
 
-```text
-/boot/bootanim/bootanim.banim
-```
+[Watch MP4 preview](previews/gba0001-0260.mp4)
 
-For muOS, place it at:
+    cp gba.banim bootanim.banim
 
-```text
-/mnt/mmc/MUOS/bootanim/bootanim.banim
-```
+## Knulli
 
-## Included examples
+[Watch MP4 preview](previews/knulli_0001-0260.mp4)
 
-| File | Logical size | FPS | Loop start | Preview |
-|---|---:|---:|---:|---|
-| `example_360x240_30fps_loop90.banim` | 360×240 | 30 | frame 90 | [MP4](previews/example_360x240_30fps_loop90_preview.mp4) |
-| `example_360x240_60fps_loop180.banim` | 360×240 | 60 | frame 180 | [MP4](previews/example_360x240_60fps_loop180_preview.mp4) |
+    cp knulli.banim bootanim.banim
 
-## Inline previews
+## muOS
 
-### 30 FPS example
+[Watch MP4 preview](previews/muos_0001-0260.mp4)
 
-![30 FPS preview](previews/example_360x240_30fps_loop90_preview.gif)
-
-### 60 FPS example
-
-![60 FPS preview](previews/example_360x240_60fps_loop180_preview.gif)
+    cp muos.banim bootanim.banim
 
 ## Notes
 
-The examples are stored at `360x240`. Use the player scale option to match the device screen:
+The preview videos are MP4 files. GitHub usually opens them with its web video player when clicked.
 
-- `--scale 1` for a 360×240 output;
-- `--scale 2` for a 720×480 output.
+For actual installation, the `.banim` file must be renamed or copied to:
 
-If your handheld is `640x480`, create a `320x240` animation and play it with `--scale 2`.
+    bootanim.banim

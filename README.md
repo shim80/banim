@@ -1,302 +1,423 @@
 # banim
 
-**banim** is a tiny boot-animation system for Linux handhelds.
+**banim** is a tiny boot animation system for Linux handheld consoles.
 
-It was built for devices where a normal video decoder is too heavy or starts too late during boot. Instead of playing MP4 directly on the device, `banim` uses a prepacked framebuffer-friendly animation format: **BNF1 / `.banim`**.
+It is designed for devices where the normal boot logo is static, but the user wants a lightweight animated handoff before the frontend takes over.
 
-The goal is simple:
+The project includes:
 
-- convert frames or MP4 on a PC;
-- copy one `bootanim.banim` file to the handheld;
-- start a tiny framebuffer player early in boot;
-- stop automatically when the real frontend takes over `/dev/fb0`.
-
-The tested targets in this repository are:
-
-- **Knulli / Batocera-style systems** using `/boot/boot-custom.sh`;
-- **muOS / MustardOS** using a reliable 3-entry app package.
+- a compact `.banim` animation format
+- a direct framebuffer player
+- a Python packing tool for MP4 videos or image frames
+- a working Knulli / Batocera boot hook
+- a reliable muOS installer app
+- ready-to-use animation examples
 
 ---
 
-## Preview examples
+## Demo videos
 
-Example animations are included in [`animation_examples/`](animation_examples/). To use one, copy or rename it to `bootanim.banim`.
+The example animations are available in `animation_examples/`.
 
-### 360×240, 30 FPS, loop from frame 90
+### GBA
 
-![30 FPS preview](animation_examples/previews/example_360x240_30fps_loop90_preview.gif)
+[Watch MP4 preview](animation_examples/previews/gba0001-0260.mp4)
 
-Video file: [`example_360x240_30fps_loop90_preview.mp4`](animation_examples/previews/example_360x240_30fps_loop90_preview.mp4)
+### Knulli
 
-### 360×240, 60 FPS, loop from frame 180
+[Watch MP4 preview](animation_examples/previews/knulli_0001-0260.mp4)
 
-![60 FPS preview](animation_examples/previews/example_360x240_60fps_loop180_preview.gif)
+### muOS
 
-Video file: [`example_360x240_60fps_loop180_preview.mp4`](animation_examples/previews/example_360x240_60fps_loop180_preview.mp4)
+[Watch MP4 preview](animation_examples/previews/muos_0001-0260.mp4)
+
+Note: GitHub usually opens MP4 files with its web video player when clicked.
+
+For inline embedded players directly inside the README, upload the videos through GitHub's Markdown editor or an issue/comment, then paste the generated `https://github.com/user-attachments/assets/...` URLs on their own lines.
 
 ---
 
 ## How it works
 
-### 1. Prepare the animation on a PC
+Most handheld Linux systems show a static boot image first, then later start the main frontend.
 
-The Python tool in [`tools/banim_pack/`](tools/banim_pack/) converts an MP4 or a ZIP/folder of frames into a `.banim` file.
+`banim` starts a tiny framebuffer player early in the boot process:
 
-Example from MP4:
+    boot logo
+    -> Linux starts
+    -> banim player opens /dev/fb0
+    -> animation plays
+    -> frontend opens /dev/fb0
+    -> banim stops and lets the frontend take over
 
-```sh
-python3 tools/banim_pack/banim_pack.py animation.mp4 bootanim.banim \
-  --logical-size 320x240 \
-  --resize lanczos \
-  --loop-start 180 \
-  --report bootanim_report.json \
-  --contact-sheet contact_sheet.jpg
-```
-
-Example from frames:
-
-```sh
-python3 tools/banim_pack/banim_pack.py frames.zip bootanim.banim \
-  --fps 60 \
-  --logical-size 320x240 \
-  --resize lanczos \
-  --loop-start 180
-```
-
-If the source is an MP4, the tool reads the framerate from the video. If the source is a folder or ZIP of frames, pass `--fps` manually.
-
-### 2. Play the animation during boot
-
-The framebuffer player is a very small AArch64 Linux binary. It opens `/dev/fb0`, decodes the `.banim` file, writes RGB565 pixels directly to the framebuffer, and can stop automatically when another process opens the framebuffer.
-
-The important runtime option is:
-
-```sh
---stop-on-any-fb-owner
-```
-
-That makes the player portable across frontends. It does not need to know whether the next UI process is EmulationStation, muxfrontend, Pegasus, MinUI, or something else. When another process opens `/dev/fb0`, `bootanim` exits and lets the frontend take over.
+The player does not use a heavy video decoder at boot. Instead, it plays a pre-packed `.banim` file.
 
 ---
 
-## File format summary
+## The `.banim` format
 
-`.banim` files use the `BNF1` format:
+The current format is called `BNF1`.
 
-- little-endian header;
-- logical frame size, output size, FPS, frame count, loop range;
-- per-frame index table;
-- dirty rectangles;
-- RGB565 run-length encoding.
+It stores:
 
-It is designed for early boot:
+- animation width and height
+- output size metadata
+- FPS
+- frame count
+- loop start frame
+- RGB565 frame data
+- dirty rectangles
+- simple RLE compression
 
-- no MP4/H.264 decoder on the handheld;
-- no dynamic image libraries;
-- very small runtime player;
-- simple sequential decode;
-- good compression for boot animations with limited movement.
+The goal is to keep boot playback very small and deterministic:
 
----
-
-## Repository layout
-
-```text
-banim/
-├── README.md
-├── animation_examples/
-│   ├── README.md
-│   ├── example_360x240_30fps_loop90.banim
-│   ├── example_360x240_60fps_loop180.banim
-│   └── previews/
-│       ├── *.gif
-│       ├── *.mp4
-│       └── *_first_frame.png
-├── knulli/
-│   ├── README.md
-│   ├── boot-custom.sh
-│   └── bootanim/
-│       ├── bootanim
-│       ├── bootanim_v5_nolibc.c
-│       └── start_aarch64.S
-├── muos/
-│   ├── README.md
-│   └── reliable_three_apps/
-└── tools/
-    └── banim_pack/
-```
+    no ffmpeg at boot
+    no mpv at boot
+    no PNG/JPEG decoder at boot
+    no SDL requirement for playback
+    direct /dev/fb0 rendering
 
 ---
 
-## Knulli quick install
+## Animation structure
 
-Knulli does not need a manager app. Copy the hook script to the boot partition, and place the player + animation under `/boot/bootanim`.
+A boot animation normally has two parts:
 
-Expected paths on the device:
+    startup segment
+    -> frames that play once
 
-```text
-/boot/boot-custom.sh
-/boot/bootanim/bootanim
-/boot/bootanim/bootanim.banim
-```
+    loop segment
+    -> frames that repeat until the frontend is ready
 
-Typical install:
+Example:
 
-```sh
-mount -o remount,rw /boot
+    260 total frames
+    loop start = 180
 
-mkdir -p /boot/bootanim
-cp knulli/boot-custom.sh /boot/boot-custom.sh
-cp knulli/bootanim/bootanim /boot/bootanim/bootanim
-cp bootanim.banim /boot/bootanim/bootanim.banim
+That means:
 
-chmod +x /boot/boot-custom.sh
-chmod +x /boot/bootanim/bootanim
+    frames 1-179   play once
+    frames 180-260 loop
 
-sync
-mount -o remount,ro /boot
-```
+When using the packer, pass the human frame number:
 
-Then reboot and inspect:
-
-```sh
-cat /tmp/bootanim.log
-```
-
-Configuration is inside `knulli/boot-custom.sh`. For example, if your `.banim` is `320x240` and the screen is `640x480`, use:
-
-```sh
---scale 2
-```
+    --loop-start 180
 
 ---
 
-## muOS reliable install
+## Resolution and scaling
 
-The reliable muOS package is the 3-entry app version:
+You can encode the `.banim` at a smaller logical resolution and scale it at playback.
 
-- **BootAnim Install**
-- **BootAnim Uninstall**
-- **BootAnim Preview**
+Example for a `640x480` screen:
 
-This version was kept because it works reliably with muOS. Experimental single-menu versions are intentionally not included in this release.
+    source frames: 640x480
+    .banim file:   320x240
+    player scale:  2
+    final output:  640x480
 
-Copy the `.muxapp` from:
+This keeps the `.banim` smaller while still filling the screen.
 
-```text
-muos/reliable_three_apps/BanimManager_reliable_three_apps.muxapp
-```
+To create a `320x240` `.banim` from `640x480` frames:
 
-to:
+    python3 tools/banim_pack/banim_pack.py frames.zip bootanim.banim \
+      --fps 60 \
+      --logical-size 320x240 \
+      --resize lanczos \
+      --loop-start 180 \
+      --report bootanim_report.json \
+      --contact-sheet contact_sheet.jpg
 
-```text
-/mnt/mmc/ARCHIVE
-```
+Then run the player with:
 
-Then install it using muOS Archive Manager.
-
-Put your animation here:
-
-```text
-/mnt/mmc/MUOS/bootanim/bootanim.banim
-```
-
-After running **BootAnim Install**, the boot hook is installed at:
-
-```text
-/opt/muos/script/init/S03bootanim
-```
-
-The runtime files are copied to:
-
-```text
-/opt/bootanim/
-```
-
-Logs:
-
-```sh
-cat /mnt/mmc/MUOS/bootanim-manager-last.log
-cat /tmp/bootanim.log
-```
+    --scale 2
 
 ---
 
-## Boot logo notes
+## Creating `.banim` files
 
-The boot animation player starts once Linux userspace is running and `/dev/fb0` exists. It does not replace the bootloader itself.
+The packer is located here:
 
-For the smoothest visual transition, set the static boot logo to the first frame of the animation. The Python tool can export static logos from the final `.banim` frame 0, optionally resized:
+    tools/banim_pack/banim_pack.py
 
-```sh
-python3 tools/banim_pack/banim_pack.py animation.mp4 bootanim.banim \
-  --logical-size 320x240 \
-  --resize lanczos \
-  --loop-start 180 \
-  --export-knulli-bootlogo bootlogo.bmp \
-  --export-muos-logo muoslogo.ico \
-  --logo-size 640x480
-```
+Install dependencies on your PC:
+
+    python3 -m pip install pillow numpy
+
+For MP4 input, install `ffmpeg` and `ffprobe`.
+
+On macOS:
+
+    brew install ffmpeg
 
 ---
 
-## Safety / recovery
+## Convert frames to `.banim`
+
+    python3 tools/banim_pack/banim_pack.py frames.zip bootanim.banim \
+      --fps 60 \
+      --loop-start 180 \
+      --report bootanim_report.json \
+      --contact-sheet contact_sheet.jpg
+
+You can also pass a folder instead of a ZIP:
+
+    python3 tools/banim_pack/banim_pack.py frames/ bootanim.banim \
+      --fps 60 \
+      --loop-start 180
+
+---
+
+## Convert MP4 to `.banim`
+
+For video input, the FPS is read automatically from the MP4:
+
+    python3 tools/banim_pack/banim_pack.py animation.mp4 bootanim.banim \
+      --loop-start 180 \
+      --report bootanim_report.json \
+      --contact-sheet contact_sheet.jpg
+
+To resize while packing:
+
+    python3 tools/banim_pack/banim_pack.py animation.mp4 bootanim.banim \
+      --logical-size 320x240 \
+      --resize lanczos \
+      --loop-start 180
+
+---
+
+## `banim_pack.py` options
+
+### Positional arguments
+
+`input`
+
+Input file or folder.
+
+Supported inputs:
+
+- `.zip` containing frames
+- folder containing frames
+- video file such as `.mp4`, `.mov`, `.mkv`
+
+`output`
+
+Output `.banim` file.
+
+Example:
+
+    python3 tools/banim_pack/banim_pack.py input.mp4 bootanim.banim
+
+### Timing options
+
+`--fps FPS`
+
+Sets animation FPS.
+
+Required for image frames. Optional for videos, because video FPS is read with `ffprobe`.
+
+`--loop-start FRAME`
+
+Human frame number where the loop starts.
+
+Example:
+
+    --loop-start 180
+
+means frame 180 is the first frame of the loop.
+
+### Size options
+
+`--logical-size WIDTHxHEIGHT`
+
+Sets the encoded `.banim` resolution.
+
+Example:
+
+    --logical-size 320x240
+
+`--resize METHOD`
+
+Resize method used when source size differs from logical size.
+
+Common value:
+
+    --resize lanczos
+
+### Report and preview options
+
+`--report FILE.json`
+
+Writes a JSON report.
+
+`--contact-sheet FILE.jpg`
+
+Creates a contact sheet preview.
+
+### Logo export options
+
+`--export-first-frame FILE.png`
+
+Exports frame 0 as PNG.
+
+`--export-knulli-bootlogo bootlogo.bmp`
+
+Exports a BMP boot logo.
+
+`--export-muos-logo muoslogo.ico`
+
+Exports an ICO logo.
+
+`--logo-source banim`
+
+Exports logos from the final `.banim` frame 0.
+
+`--logo-size WIDTHxHEIGHT`
+
+Resizes the exported logo.
+
+Example:
+
+    python3 tools/banim_pack/banim_pack.py animation.mp4 bootanim.banim \
+      --logical-size 320x240 \
+      --resize lanczos \
+      --loop-start 180 \
+      --export-knulli-bootlogo bootlogo.bmp \
+      --logo-size 640x480
+
+---
+
+## Knulli / Batocera installation
+
+Knulli uses the normal Batocera early boot hook:
+
+    /boot/boot-custom.sh
+
+The Knulli folder contains:
+
+    knulli/
+    ├── boot-custom.sh
+    └── bootanim/
+        └── bootanim
+
+Copy the files to the boot partition:
+
+    mount -o remount,rw /boot
+
+    mkdir -p /boot/bootanim
+
+    cp knulli/boot-custom.sh /boot/boot-custom.sh
+    cp knulli/bootanim/bootanim /boot/bootanim/bootanim
+    cp bootanim.banim /boot/bootanim/bootanim.banim
+
+    chmod +x /boot/boot-custom.sh
+    chmod +x /boot/bootanim/bootanim
+
+    sync
+    mount -o remount,ro /boot
+
+The Knulli hook runs:
+
+    /boot/bootanim/bootanim.banim
+
+The player starts when `/dev/fb0` appears and stops when another process opens `/dev/fb0`.
+
+---
+
+## muOS installation
+
+The reliable muOS version uses three app entries:
+
+    BootAnim Install
+    BootAnim Uninstall
+    BootAnim Preview
+
+This version is intentionally kept simple and reliable.
+
+The muOS package is in:
+
+    muos/reliable_three_apps/
+
+Copy the `.muxapp` to:
+
+    /mnt/mmc/ARCHIVE
+
+Then install it from the muOS Archive Manager.
+
+Place your animation here:
+
+    /mnt/mmc/MUOS/bootanim/bootanim.banim
+
+The installer creates:
+
+    /opt/bootanim/bootanim
+    /opt/bootanim/bootanim.banim
+    /opt/muos/script/init/S03bootanim
+
+The boot hook starts the animation early and stops when another process takes `/dev/fb0`.
+
+---
+
+## Animation examples
+
+Example `.banim` files are in:
+
+    animation_examples/
+
+To use an example, copy or rename it to:
+
+    bootanim.banim
+
+Examples:
+
+    cp animation_examples/gba.banim bootanim.banim
+    cp animation_examples/knulli.banim bootanim.banim
+    cp animation_examples/muos.banim bootanim.banim
+
+---
+
+## Recovery
 
 ### Knulli
 
-Disable the animation by removing or renaming:
+Disable the boot animation:
 
-```text
-/boot/boot-custom.sh
-```
-
-or remove:
-
-```text
-/boot/bootanim/bootanim.banim
-```
+    mount -o remount,rw /boot
+    rm -f /boot/boot-custom.sh
+    sync
+    mount -o remount,ro /boot
+    reboot
 
 ### muOS
 
-Disable boot animation from SSH:
+Disable the boot animation:
 
-```sh
-rm -f /opt/muos/script/init/S03bootanim
-rm -rf /opt/bootanim
-sync
-reboot
-```
-
-If the app package was installed:
-
-```sh
-rm -rf /mnt/mmc/MUOS/application/bootanim_install
-rm -rf /mnt/mmc/MUOS/application/bootanim_uninstall
-rm -rf /mnt/mmc/MUOS/application/bootanim_preview
-rm -rf /mnt/mmc/MUOS/application/bootanim_common
-sync
-```
+    rm -f /opt/muos/script/init/S03bootanim
+    rm -rf /opt/bootanim
+    sync
+    reboot
 
 ---
 
-## Status
+## Project status
 
 Validated:
 
-- BNF1 `.banim` conversion from frames and MP4;
-- 30 FPS and 60 FPS examples;
-- Knulli early boot via `/boot/boot-custom.sh`;
-- portable stop-on-any-fb-owner handoff;
-- muOS reliable 3-entry package.
+- Knulli / Batocera framebuffer boot animation
+- muOS reliable three-app installer
+- `.banim` generation from frames
+- `.banim` generation from MP4
+- 320x240 logical animations scaled to 640x480
+- 360x240 logical animations scaled to 720x480
 
-Experimental / not included:
+Experimental / not included as reliable:
 
-- single-entry muOS visual manager;
-- DRM/KMS renderer;
-- U-Boot-level animation.
+- single-entry muOS graphical manager
+- SDL2 muOS manager
+- DRM/KMS renderer
 
 ---
 
 ## License
 
-Add your preferred license before publishing. If you want a permissive default, MIT is a good fit for this project.
+Add your preferred license here.
